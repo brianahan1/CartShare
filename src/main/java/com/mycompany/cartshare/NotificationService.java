@@ -77,4 +77,26 @@ public class NotificationService {
     public void clearReadNotifications(String username) {
         notifications.removeIf(n -> n.getRecipientUsername().equals(username) && n.isRead());
     }
+
+    //user added to group
+    public void notifyUserAddedToGroup(String recipientUsername, String groupName) {
+        sendNotification(recipientUsername, "You have been added to the group \"" + groupName + "\".");
+    }
+
+    //cart/bill added to group
+    public void notifyCartAddedToGroup(Group group) {
+        for (User member : group.getMembers()) {
+            sendNotification(member.getUsername(), 
+                "A new cart has been added to your group \"" + group.getGroupName() + "\".");
+        }
+    }
+
+    //notify group of payment
+    public void notifyMemberPaid(Group group, String payerUsername) {
+        for (User member : group.getMembers()) {
+            sendNotification(member.getUsername(), 
+                payerUsername + " has made a payment in the group \"" + group.getGroupName() + "\".");
+        }
+    }
+    
 }
