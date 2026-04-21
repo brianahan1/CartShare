@@ -10,4 +10,12 @@ public class ShoppingItem {
     private String item;
     private String price;
     private ArrayList<User> buyers;
+    
+    public String getName() {
+        return item;
+    }
+    
+    public String getPrice () {
+        return price;
+    }
 }
