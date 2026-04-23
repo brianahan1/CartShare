@@ -1,1 +1,3 @@
 echo "config.properties" >> .gitignore
+echo "target/" >> .gitignore
+echo "receipt1.png" >> .gitignore

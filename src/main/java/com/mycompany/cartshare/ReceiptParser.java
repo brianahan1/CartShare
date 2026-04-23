@@ -11,8 +11,8 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 
 public class ReceiptParser {
-
     private static final String VISION_API_KEY;
+    public ShoppingCart shopCart;
 
     static {
         Properties props = new Properties();
@@ -49,21 +49,37 @@ public class ReceiptParser {
 
         // Read raw response
         String rawResponse = new String(conn.getInputStream().readAllBytes());
-
-        // Extract just the text from the JSON
         JSONObject json = new JSONObject(rawResponse);
         String extractedText = json.getJSONArray("responses")
-                                   .getJSONObject(0)
-                                   .getJSONArray("textAnnotations")
-                                   .getJSONObject(0)
-                                   .getString("description");
-
+                           .getJSONObject(0)
+                           .getJSONArray("textAnnotations")
+                           .getJSONObject(0)
+                           .getString("description");
         return extractedText;
     }
+        
+    
 
     public static void main(String[] args) throws Exception {
         ReceiptParser parser = new ReceiptParser();
-        String result = parser.parseReceipt("receipt.png");
-        System.out.println(result);
+        String result = parser.parseReceipt("receipt1.png");
+        GenerateTextFromTextInput generateValue = new GenerateTextFromTextInput();
+        String outputValue = generateValue.GenerateTextFromTextInput(result);
+        System.out.println(outputValue);
+        String[] parse = outputValue.split(",");
+        parser.shopCart = new ShoppingCart();
+        for (int i = 0; i < parse.length; i++) {
+            if (i == 0) {
+                parser.shopCart.setRetailer(parse[0]);
+            }
+            else if (i==1) {
+                parser.shopCart.setDate(parse[1]);
+            }
+            else {
+                String [] itemValue = parse[i].split("~");
+                double price = Double.parseDouble(itemValue[1].trim());
+                parser.shopCart.addItem(itemValue[0],price);
+            }
+        }
     }
 }

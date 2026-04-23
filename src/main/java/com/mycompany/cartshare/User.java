@@ -13,4 +13,16 @@ public class User {
     private double currentBalance;
     private ArrayList<Group> groups; // List all the groups the user belongs to
     private ArrayList<User> friendList;
+    
+    public String getFirstName () {
+        return firstName;
+    }
+    
+    public String getLastName () {
+        return lastName;
+    }
+    
+    public double getCurrentBalance () {
+        return currentBalance;
+    }
 }
