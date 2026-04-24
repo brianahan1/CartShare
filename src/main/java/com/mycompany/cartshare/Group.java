@@ -10,4 +10,11 @@ public class Group {
     private String groupId;
     private String groupName;
     private ArrayList<User> members;
+    
+    public String getGroupName() {
+        return this.groupName;
+    }
+    public ArrayList<User> getMembers() {
+        return members;
+    }
 }

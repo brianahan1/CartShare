@@ -38,4 +38,8 @@ public class ShoppingCart {
         newItem.setPrice(price);
         items.add(newItem);
     }
+    
+    public ArrayList<ShoppingItem> getItems() {
+        return items;
+    }
 }

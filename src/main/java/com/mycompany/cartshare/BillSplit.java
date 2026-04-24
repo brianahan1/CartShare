@@ -34,9 +34,9 @@ public abstract class BillSplit {
         double total = 0.0;
         for (ShoppingItem item : cart.getItems()) {
             try {
-                total += Double.parseDouble(item.getPrice());
+                total += item.getPrice();
             } catch (NumberFormatException e) {
-                System.out.println("Warning: Could not parse price for item: " + item.getItem());
+                System.out.println("Warning: Could not parse price for item: " + item.getItems());
             }
         }
         return total;

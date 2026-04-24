@@ -25,4 +25,7 @@ public class User {
     public double getCurrentBalance () {
         return currentBalance;
     }
+    public String getUsername () {
+        return this.username;
+    }
 }
