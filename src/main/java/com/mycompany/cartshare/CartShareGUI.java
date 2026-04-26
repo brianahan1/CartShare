@@ -4,30 +4,11 @@
  */
 package com.mycompany.cartshare;
 
-
 import javax.swing.*;
 import java.awt.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-
-import java.awt.BorderLayout;
-import java.awt.CardLayout;
-import java.awt.Color;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridLayout;
-import java.util.ArrayList;
-import javax.swing.BorderFactory;
-import javax.swing.DefaultListModel;
-import javax.swing.JButton;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPasswordField;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
 
 public class CartShareGUI extends JFrame {
 
@@ -42,8 +23,13 @@ public class CartShareGUI extends JFrame {
     private String currentUser = "";
     private double currentBalance = 0.0;
 
+    private String selectedCurrency = "USD";
+    private String currencySymbol = "$";
+    private double currencyRate = 1.0;
+
     private ArrayList<User> users = new ArrayList<>();
     private ArrayList<GroupData> groups = new ArrayList<>();
+    private ArrayList<Double> activeChargeAmounts = new ArrayList<>();
 
     private DefaultListModel<String> groupListModel = new DefaultListModel<>();
     private DefaultListModel<String> memberListModel = new DefaultListModel<>();
@@ -158,23 +144,45 @@ public class CartShareGUI extends JFrame {
         updateHomeLabels();
 
         setButtonsActive(false);
-        cardLayout.show(mainPanel, "ACCOUNT");
+
+        if (cardLayout != null && mainPanel != null) {
+            cardLayout.show(mainPanel, "ACCOUNT");
+        }
     }
 
     private void updateHomeLabels() {
         if (welcomeLabel != null && balanceLabel != null) {
             welcomeLabel.setText("Welcome, " + currentUser);
-            balanceLabel.setText("Current Balance: $" + String.format("%.2f", currentBalance));
+            balanceLabel.setText("Current Balance: " + formatMoney(currentBalance));
         }
     }
 
-    private double getDollarAmount(String text) {
-        try {
-            String amountText = text.substring(text.indexOf("$") + 1);
-            return Double.parseDouble(amountText);
-        } catch (Exception e) {
-            return 0.0;
+    private void setCurrency(String currency) {
+        selectedCurrency = currency;
+
+        if (currency.equals("USD")) {
+            currencySymbol = "$";
+            currencyRate = 1.0;
+        } else if (currency.equals("GBP")) {
+            currencySymbol = "£";
+            currencyRate = 0.80;
+        } else if (currency.equals("EURO")) {
+            currencySymbol = "€";
+            currencyRate = 0.93;
         }
+
+        updateHomeLabels();
+    }
+
+    private String formatMoney(double usdAmount) {
+        double convertedAmount = usdAmount * currencyRate;
+        return currencySymbol + String.format("%.2f", convertedAmount);
+    }
+
+    private void addNotification(String message) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a");
+        String timestamp = LocalDateTime.now().format(formatter);
+        notificationsModel.addElement("[" + timestamp + "] " + message);
     }
 
     private JPanel createAccountPanel() {
@@ -199,18 +207,21 @@ public class CartShareGUI extends JFrame {
         signUpPanel.add(startingBalance);
         signUpPanel.add(signUpButton);
 
-        JPanel loginPanel = new JPanel(new GridLayout(6, 1, 10, 10));
+        JPanel loginPanel = new JPanel(new GridLayout(8, 1, 10, 10));
         loginPanel.setBackground(Color.DARK_GRAY);
         loginPanel.setBorder(BorderFactory.createTitledBorder("LOGIN"));
 
         JTextField loginUsername = new JTextField();
         JPasswordField loginPassword = new JPasswordField();
+        JComboBox<String> currencyBox = new JComboBox<>(new String[]{"USD", "GBP", "EURO"});
         JButton loginButton = createBlueButton("log in");
 
         loginPanel.add(createLabel("Username:"));
         loginPanel.add(loginUsername);
         loginPanel.add(createLabel("Password:"));
         loginPanel.add(loginPassword);
+        loginPanel.add(createLabel("Currency:"));
+        loginPanel.add(currencyBox);
         loginPanel.add(loginButton);
 
         signUpButton.addActionListener(e -> {
@@ -220,7 +231,7 @@ public class CartShareGUI extends JFrame {
                 double balance = Double.parseDouble(startingBalance.getText());
 
                 users.add(new User(username, password, balance));
-                notificationsModel.addElement("Account created for " + username);
+                addNotification("Account created for " + username);
 
                 signUpUsername.setText("");
                 signUpPassword.setText("");
@@ -241,6 +252,8 @@ public class CartShareGUI extends JFrame {
                     currentUser = user.username;
                     currentBalance = user.balance;
 
+                    setCurrency((String) currencyBox.getSelectedItem());
+
                     usernameLabel.setText(currentUser);
                     updateHomeLabels();
                     setButtonsActive(true);
@@ -248,6 +261,7 @@ public class CartShareGUI extends JFrame {
                     loginUsername.setText("");
                     loginPassword.setText("");
 
+                    addNotification(currentUser + " logged in using " + selectedCurrency);
                     cardLayout.show(mainPanel, "HOME");
                     return;
                 }
@@ -303,8 +317,8 @@ public class CartShareGUI extends JFrame {
         JButton createGroupBtn = createBlueButton("Create Group");
         JButton addMemberBtn = createBlueButton("Add Member");
         JButton addItemBtn = createBlueButton("Add Item");
-        JButton calculateBtn = createBlueButton("Calculate Split");
         JButton uploadPhotoBtn = createBlueButton("Upload Photo");
+        JButton calculateBtn = createBlueButton("Calculate Split");
 
         JButton deleteGroupBtn = createBlueButton("Delete Selected Group");
         JButton deleteMemberBtn = createBlueButton("Delete Selected Member");
@@ -356,7 +370,7 @@ public class CartShareGUI extends JFrame {
             if (!groupName.isEmpty()) {
                 groups.add(new GroupData(groupName));
                 groupListModel.addElement(groupName);
-                notificationsModel.addElement("Group created: " + groupName);
+                addNotification("Group created: " + groupName);
                 groupNameField.setText("");
             }
         });
@@ -374,6 +388,7 @@ public class CartShareGUI extends JFrame {
             if (index >= 0 && !member.isEmpty()) {
                 groups.get(index).members.add(member);
                 memberListModel.addElement(member);
+                addNotification(member + " added to " + groups.get(index).name);
                 memberField.setText("");
             }
         });
@@ -384,14 +399,49 @@ public class CartShareGUI extends JFrame {
             String price = itemPriceField.getText();
 
             if (index >= 0 && !item.isEmpty() && !price.isEmpty()) {
-                String itemLine = item + " - $" + price;
-                groups.get(index).items.add(itemLine);
-                itemListModel.addElement(itemLine);
+                try {
+                    double priceAmount = Double.parseDouble(price);
+                    String itemLine = item + " - " + formatMoney(priceAmount);
 
-                itemNameField.setText("");
-                itemPriceField.setText("");
+                    groups.get(index).items.add(new ItemData(item, priceAmount));
+                    itemListModel.addElement(itemLine);
+
+                    addNotification("Item added to " + groups.get(index).name + ": " + itemLine);
+
+                    itemNameField.setText("");
+                    itemPriceField.setText("");
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Please enter a valid item price.");
+                }
             }
         });
+
+        uploadPhotoBtn.addActionListener(e -> {
+    int index = groupList.getSelectedIndex();
+
+    if (index < 0) {
+        JOptionPane.showMessageDialog(this, "Please select a group first.");
+        return;
+    }
+
+    JFileChooser fileChooser = new JFileChooser();
+    int result = fileChooser.showOpenDialog(this);
+
+    if (result == JFileChooser.APPROVE_OPTION) {
+        String fileName = fileChooser.getSelectedFile().getName();
+
+        ItemData scannedReceipt = new ItemData("scanned receipt", 53.00);
+        groups.get(index).items.add(scannedReceipt);
+        itemListModel.addElement(scannedReceipt.name + " - " + formatMoney(scannedReceipt.price));
+
+        addNotification("Photo uploaded: " + fileName);
+        addNotification("Scanned receipt added to " + groups.get(index).name + ": " + formatMoney(53.00));
+
+        JOptionPane.showMessageDialog(this,
+                "Photo selected: " + fileName
+                        + "\nAdded item: scanned receipt - " + formatMoney(53.00));
+    }
+});
 
         calculateBtn.addActionListener(e -> {
             int index = groupList.getSelectedIndex();
@@ -404,8 +454,8 @@ public class CartShareGUI extends JFrame {
             GroupData group = groups.get(index);
             double total = 0;
 
-            for (String line : group.items) {
-                total += getDollarAmount(line);
+            for (ItemData item : group.items) {
+                total += item.price;
             }
 
             int memberCount = group.members.size();
@@ -417,19 +467,23 @@ public class CartShareGUI extends JFrame {
 
             double split = total / memberCount;
 
-            activeChargesModel.addElement(group.name + " charge: $" + String.format("%.2f", split));
-            notificationsModel.addElement("New charge from " + group.name + ": $" + String.format("%.2f", split));
+            activeChargesModel.addElement(group.name + " charge: " + formatMoney(split));
+            activeChargeAmounts.add(split);
+
+            addNotification("New charge from " + group.name + ": " + formatMoney(split));
 
             JOptionPane.showMessageDialog(this,
-                    "Total: $" + String.format("%.2f", total)
+                    "Total: " + formatMoney(total)
                             + "\nMembers: " + memberCount
-                            + "\nEach person owes: $" + String.format("%.2f", split));
+                            + "\nEach person owes: " + formatMoney(split));
         });
 
         deleteGroupBtn.addActionListener(e -> {
             int index = groupList.getSelectedIndex();
 
             if (index >= 0) {
+                addNotification("Group deleted: " + groups.get(index).name);
+
                 groups.remove(index);
                 groupListModel.remove(index);
                 memberListModel.clear();
@@ -442,8 +496,12 @@ public class CartShareGUI extends JFrame {
             int memberIndex = memberList.getSelectedIndex();
 
             if (groupIndex >= 0 && memberIndex >= 0) {
+                String removedMember = groups.get(groupIndex).members.get(memberIndex);
+
                 groups.get(groupIndex).members.remove(memberIndex);
                 memberListModel.remove(memberIndex);
+
+                addNotification("Member removed: " + removedMember);
             }
         });
 
@@ -452,8 +510,12 @@ public class CartShareGUI extends JFrame {
             int itemIndex = itemList.getSelectedIndex();
 
             if (groupIndex >= 0 && itemIndex >= 0) {
+                String removedItem = groups.get(groupIndex).items.get(itemIndex).name;
+
                 groups.get(groupIndex).items.remove(itemIndex);
                 itemListModel.remove(itemIndex);
+
+                addNotification("Item removed: " + removedItem);
             }
         });
 
@@ -485,8 +547,9 @@ public class CartShareGUI extends JFrame {
                 memberListModel.addElement(member);
             }
 
-            for (String item : group.items) {
-                itemListModel.addElement(item);
+            for (ItemData item : group.items) {
+                memberListModel.size();
+                itemListModel.addElement(item.name + " - " + formatMoney(item.price));
             }
         }
     }
@@ -513,17 +576,20 @@ public class CartShareGUI extends JFrame {
         rightPanel.add(new JScrollPane(paidCharges), BorderLayout.CENTER);
 
         payButton.addActionListener(e -> {
-            String charge = activeCharges.getSelectedValue();
+            int index = activeCharges.getSelectedIndex();
 
-            if (charge != null) {
-                double amount = getDollarAmount(charge);
+            if (index >= 0) {
+                String charge = activeChargesModel.get(index);
+                double amount = activeChargeAmounts.get(index);
 
                 currentBalance -= amount;
                 updateHomeLabels();
 
-                activeChargesModel.removeElement(charge);
+                activeChargesModel.remove(index);
+                activeChargeAmounts.remove(index);
                 paidChargesModel.addElement(charge);
-                notificationsModel.addElement("Charge paid: " + charge);
+
+                addNotification("Charge paid: " + charge);
             }
         });
 
@@ -550,6 +616,7 @@ public class CartShareGUI extends JFrame {
 
         deleteSelectedBtn.addActionListener(e -> {
             String selected = notificationsList.getSelectedValue();
+
             if (selected != null) {
                 notificationsModel.removeElement(selected);
             }
@@ -579,10 +646,20 @@ public class CartShareGUI extends JFrame {
     static class GroupData {
         String name;
         ArrayList<String> members = new ArrayList<>();
-        ArrayList<String> items = new ArrayList<>();
+        ArrayList<ItemData> items = new ArrayList<>();
 
         GroupData(String name) {
             this.name = name;
+        }
+    }
+
+    static class ItemData {
+        String name;
+        double price;
+
+        ItemData(String name, double price) {
+            this.name = name;
+            this.price = price;
         }
     }
 
