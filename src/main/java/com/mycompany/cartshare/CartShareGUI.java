@@ -2,12 +2,15 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
+
+/**
+ * Front end of CartShare. uses the ActionListener interface for buttons.
+ * The GUI calls on methods from CartShareClient to communicate back and fourth from the server
+ */
 package com.mycompany.cartshare;
 
 import javax.swing.*;
 import java.awt.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 
 public class CartShareGUI extends JFrame {
@@ -15,7 +18,13 @@ public class CartShareGUI extends JFrame {
     private JPanel mainPanel;
     private CardLayout cardLayout;
 
-    private JButton homeBtn, ledgerBtn, groupsBtn, accountBtn, notificationsBtn, logoutBtn;
+    private JButton homeBtn;
+    private JButton ledgerBtn;
+    private JButton groupsBtn;
+    private JButton accountBtn;
+    private JButton notificationsBtn;
+    private JButton logoutBtn;
+
     private JLabel usernameLabel;
     private JLabel welcomeLabel;
     private JLabel balanceLabel;
@@ -23,13 +32,13 @@ public class CartShareGUI extends JFrame {
     private String currentUser = "";
     private double currentBalance = 0.0;
 
-    private String selectedCurrency = "USD";
-    private String currencySymbol = "$";
-    private double currencyRate = 1.0;
+    private CurrencyData currentCurrency = new CurrencyData("USD", "$", 1.0);
 
-    private ArrayList<User> users = new ArrayList<>();
+    private CartShareClient client = new CartShareClient();
+    private ExchangeRateService exchangeRateService = new ExchangeRateService();
+
     private ArrayList<GroupData> groups = new ArrayList<>();
-    private ArrayList<Double> activeChargeAmounts = new ArrayList<>();
+    private ArrayList<ChargeData> activeCharges = new ArrayList<>();
 
     private DefaultListModel<String> groupListModel = new DefaultListModel<>();
     private DefaultListModel<String> memberListModel = new DefaultListModel<>();
@@ -37,6 +46,9 @@ public class CartShareGUI extends JFrame {
     private DefaultListModel<String> activeChargesModel = new DefaultListModel<>();
     private DefaultListModel<String> paidChargesModel = new DefaultListModel<>();
     private DefaultListModel<String> notificationsModel = new DefaultListModel<>();
+
+    private JComboBox<String> memberBox; //this was originally a textfield, but comboboxes work better. 
+    private JList<String> groupList;
 
     public CartShareGUI() {
         setTitle("CartShare");
@@ -104,8 +116,17 @@ public class CartShareGUI extends JFrame {
         topBar.add(rightPanel, BorderLayout.EAST);
 
         homeBtn.addActionListener(e -> cardLayout.show(mainPanel, "HOME"));
-        ledgerBtn.addActionListener(e -> cardLayout.show(mainPanel, "LEDGER"));
-        groupsBtn.addActionListener(e -> cardLayout.show(mainPanel, "GROUPS"));
+
+        ledgerBtn.addActionListener(e -> {
+            refreshActiveCharges();
+            cardLayout.show(mainPanel, "LEDGER");
+        });
+
+        groupsBtn.addActionListener(e -> {
+            refreshUserComboBox();
+            cardLayout.show(mainPanel, "GROUPS");
+        });
+
         accountBtn.addActionListener(e -> cardLayout.show(mainPanel, "ACCOUNT"));
         notificationsBtn.addActionListener(e -> cardLayout.show(mainPanel, "NOTIFICATIONS"));
         logoutBtn.addActionListener(e -> logoutUser());
@@ -141,8 +162,10 @@ public class CartShareGUI extends JFrame {
         currentBalance = 0.0;
 
         usernameLabel.setText("");
-        updateHomeLabels();
+        activeCharges.clear();
+        activeChargesModel.clear();
 
+        updateHomeLabels();
         setButtonsActive(false);
 
         if (cardLayout != null && mainPanel != null) {
@@ -150,39 +173,59 @@ public class CartShareGUI extends JFrame {
         }
     }
 
-    private void updateHomeLabels() {
+    private void updateHomeLabels() { //important method for refreshing displayed data
         if (welcomeLabel != null && balanceLabel != null) {
             welcomeLabel.setText("Welcome, " + currentUser);
             balanceLabel.setText("Current Balance: " + formatMoney(currentBalance));
         }
     }
 
-    private void setCurrency(String currency) {
-        selectedCurrency = currency;
+    private void setCurrency(String currencyName) { //lets user set the currency
+        String apiCurrencyCode = currencyName;
+        String symbol = "$";
 
-        if (currency.equals("USD")) {
-            currencySymbol = "$";
-            currencyRate = 1.0;
-        } else if (currency.equals("GBP")) {
-            currencySymbol = "£";
-            currencyRate = 0.80;
-        } else if (currency.equals("EURO")) {
-            currencySymbol = "€";
-            currencyRate = 0.93;
+        if (currencyName.equals("USD")) {
+            apiCurrencyCode = "USD";
+            symbol = "$";
+        } else if (currencyName.equals("GBP")) {
+            apiCurrencyCode = "GBP";
+            symbol = "£";
+        } else if (currencyName.equals("EURO")) {
+            apiCurrencyCode = "EUR";
+            symbol = "€";
         }
 
+        double rate = exchangeRateService.getRate(apiCurrencyCode);
+
+        currentCurrency = new CurrencyData(currencyName, symbol, rate);
+
         updateHomeLabels();
+        refreshActiveCharges();
+        loadCurrentlySelectedGroupAgain();
     }
 
     private String formatMoney(double usdAmount) {
-        double convertedAmount = usdAmount * currencyRate;
-        return currencySymbol + String.format("%.2f", convertedAmount);
+        double convertedAmount = usdAmount * currentCurrency.getRate();
+        return currentCurrency.getSymbol() + String.format("%.2f", convertedAmount);
     }
 
     private void addNotification(String message) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a");
-        String timestamp = LocalDateTime.now().format(formatter);
-        notificationsModel.addElement("[" + timestamp + "] " + message);
+        NotificationData notification = new NotificationData(message);
+        notificationsModel.addElement(notification.getFormattedNotification());
+    }
+
+    private void refreshUserComboBox() {
+        if (memberBox == null) {
+            return;
+        }
+
+        memberBox.removeAllItems();
+
+        ArrayList<String> usernames = client.fetchUsersClient();
+
+        for (String username : usernames) {
+            memberBox.addItem(username);
+        }
     }
 
     private JPanel createAccountPanel() {
@@ -230,14 +273,24 @@ public class CartShareGUI extends JFrame {
                 String password = new String(signUpPassword.getPassword());
                 double balance = Double.parseDouble(startingBalance.getText());
 
-                users.add(new User(username, password, balance));
-                addNotification("Account created for " + username);
+                String result = client.signUpClient(username, password, balance);
 
-                signUpUsername.setText("");
-                signUpPassword.setText("");
-                startingBalance.setText("");
+                if (result != null && result.equals("SIGNED_UP")) {
+                    addNotification("Account created for " + username);
 
-                JOptionPane.showMessageDialog(this, "User signed up successfully!");
+                    signUpUsername.setText("");
+                    signUpPassword.setText("");
+                    startingBalance.setText("");
+
+                    refreshUserComboBox();
+
+                    JOptionPane.showMessageDialog(this, "User signed up successfully!");
+                } else if (result != null && result.equals("USER_EXISTS")) {
+                    JOptionPane.showMessageDialog(this, "That username already exists.");
+                } else {
+                    JOptionPane.showMessageDialog(this, "Could not connect to server.");
+                }
+
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Please enter valid sign up information.");
             }
@@ -247,27 +300,33 @@ public class CartShareGUI extends JFrame {
             String username = loginUsername.getText();
             String password = new String(loginPassword.getPassword());
 
-            for (User user : users) {
-                if (user.username.equals(username) && user.password.equals(password)) {
-                    currentUser = user.username;
-                    currentBalance = user.balance;
+            String result = client.loginClient(username, password);
 
-                    setCurrency((String) currencyBox.getSelectedItem());
+            if (result != null && result.startsWith("SUCCESS")) {
+                String[] parts = result.split("\\|");
 
-                    usernameLabel.setText(currentUser);
-                    updateHomeLabels();
-                    setButtonsActive(true);
+                currentUser = parts[1];
+                currentBalance = Double.parseDouble(parts[2]);
 
-                    loginUsername.setText("");
-                    loginPassword.setText("");
+                setCurrency((String) currencyBox.getSelectedItem());
 
-                    addNotification(currentUser + " logged in using " + selectedCurrency);
-                    cardLayout.show(mainPanel, "HOME");
-                    return;
-                }
+                usernameLabel.setText(currentUser);
+                updateHomeLabels();
+                setButtonsActive(true);
+                refreshActiveCharges();
+                refreshUserComboBox();
+
+                loginUsername.setText("");
+                loginPassword.setText("");
+
+                addNotification(currentUser + " logged in");
+                addNotification("Currency set to " + currencyBox.getSelectedItem());
+
+                cardLayout.show(mainPanel, "HOME");
+
+            } else {
+                JOptionPane.showMessageDialog(this, "Incorrect username or password.");
             }
-
-            JOptionPane.showMessageDialog(this, "Incorrect username or password.");
         });
 
         panel.add(signUpPanel);
@@ -305,12 +364,12 @@ public class CartShareGUI extends JFrame {
         panel.setBackground(Color.BLACK);
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JList<String> groupList = new JList<>(groupListModel);
+        groupList = new JList<>(groupListModel);
         JList<String> memberList = new JList<>(memberListModel);
         JList<String> itemList = new JList<>(itemListModel);
 
         JTextField groupNameField = new JTextField();
-        JTextField memberField = new JTextField();
+        memberBox = new JComboBox<>();
         JTextField itemNameField = new JTextField();
         JTextField itemPriceField = new JTextField();
 
@@ -324,6 +383,8 @@ public class CartShareGUI extends JFrame {
         JButton deleteMemberBtn = createBlueButton("Delete Selected Member");
         JButton deleteItemBtn = createBlueButton("Delete Selected Item");
 
+        refreshUserComboBox();
+
         JPanel inputPanel = new JPanel(new GridLayout(4, 1, 10, 10));
         inputPanel.setBackground(Color.BLACK);
 
@@ -336,7 +397,7 @@ public class CartShareGUI extends JFrame {
         JPanel memberRow = new JPanel(new GridLayout(1, 3, 10, 10));
         memberRow.setBackground(Color.BLACK);
         memberRow.add(createLabel("Member Name:"));
-        memberRow.add(memberField);
+        memberRow.add(memberBox);
         memberRow.add(addMemberBtn);
 
         JPanel itemRow1 = new JPanel(new GridLayout(1, 4, 10, 10));
@@ -370,6 +431,7 @@ public class CartShareGUI extends JFrame {
             if (!groupName.isEmpty()) {
                 groups.add(new GroupData(groupName));
                 groupListModel.addElement(groupName);
+
                 addNotification("Group created: " + groupName);
                 groupNameField.setText("");
             }
@@ -383,13 +445,17 @@ public class CartShareGUI extends JFrame {
 
         addMemberBtn.addActionListener(e -> {
             int index = groupList.getSelectedIndex();
-            String member = memberField.getText();
+            String member = (String) memberBox.getSelectedItem();
 
-            if (index >= 0 && !member.isEmpty()) {
-                groups.get(index).members.add(member);
-                memberListModel.addElement(member);
-                addNotification(member + " added to " + groups.get(index).name);
-                memberField.setText("");
+            if (index >= 0 && member != null && !member.isEmpty()) {
+                if (!groups.get(index).members.contains(member)) {
+                    groups.get(index).members.add(member);
+                    memberListModel.addElement(member);
+
+                    addNotification(member + " added to " + groups.get(index).getName());
+                } else {
+                    JOptionPane.showMessageDialog(this, "That user is already in this group.");
+                }
             }
         });
 
@@ -401,15 +467,16 @@ public class CartShareGUI extends JFrame {
             if (index >= 0 && !item.isEmpty() && !price.isEmpty()) {
                 try {
                     double priceAmount = Double.parseDouble(price);
-                    String itemLine = item + " - " + formatMoney(priceAmount);
+                    ItemData newItem = new ItemData(item, priceAmount);
 
-                    groups.get(index).items.add(new ItemData(item, priceAmount));
-                    itemListModel.addElement(itemLine);
+                    groups.get(index).items.add(newItem);
+                    itemListModel.addElement(newItem.getName() + " - " + formatMoney(newItem.price));
 
-                    addNotification("Item added to " + groups.get(index).name + ": " + itemLine);
+                    addNotification("Item added to " + groups.get(index).getName() + ": " + newItem.getName());
 
                     itemNameField.setText("");
                     itemPriceField.setText("");
+
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(this, "Please enter a valid item price.");
                 }
@@ -417,31 +484,31 @@ public class CartShareGUI extends JFrame {
         });
 
         uploadPhotoBtn.addActionListener(e -> {
-    int index = groupList.getSelectedIndex();
+            int index = groupList.getSelectedIndex();
 
-    if (index < 0) {
-        JOptionPane.showMessageDialog(this, "Please select a group first.");
-        return;
-    }
+            if (index < 0) {
+                JOptionPane.showMessageDialog(this, "Please select a group first.");
+                return;
+            }
 
-    JFileChooser fileChooser = new JFileChooser();
-    int result = fileChooser.showOpenDialog(this);
+            JFileChooser fileChooser = new JFileChooser();
+            int result = fileChooser.showOpenDialog(this);
 
-    if (result == JFileChooser.APPROVE_OPTION) {
-        String fileName = fileChooser.getSelectedFile().getName();
+            if (result == JFileChooser.APPROVE_OPTION) {
+                String fileName = fileChooser.getSelectedFile().getName();
 
-        ItemData scannedReceipt = new ItemData("scanned receipt", 53.00);
-        groups.get(index).items.add(scannedReceipt);
-        itemListModel.addElement(scannedReceipt.name + " - " + formatMoney(scannedReceipt.price));
+                ItemData scannedReceipt = new ItemData("scanned receipt", 53.00);
+                groups.get(index).items.add(scannedReceipt);
+                itemListModel.addElement(scannedReceipt.getName() + " - " + formatMoney(scannedReceipt.price));
 
-        addNotification("Photo uploaded: " + fileName);
-        addNotification("Scanned receipt added to " + groups.get(index).name + ": " + formatMoney(53.00));
+                addNotification("Photo uploaded: " + fileName);
+                addNotification("Scanned receipt added to " + groups.get(index).getName() + ": " + formatMoney(53.00));
 
-        JOptionPane.showMessageDialog(this,
-                "Photo selected: " + fileName
-                        + "\nAdded item: scanned receipt - " + formatMoney(53.00));
-    }
-});
+                JOptionPane.showMessageDialog(this,
+                        "Photo selected: " + fileName
+                                + "\nAdded item: scanned receipt - " + formatMoney(53.00));
+            }
+        });
 
         calculateBtn.addActionListener(e -> {
             int index = groupList.getSelectedIndex();
@@ -467,22 +534,41 @@ public class CartShareGUI extends JFrame {
 
             double split = total / memberCount;
 
-            activeChargesModel.addElement(group.name + " charge: " + formatMoney(split));
-            activeChargeAmounts.add(split);
+            int successfulCharges = 0;
+            int failedCharges = 0;
 
-            addNotification("New charge from " + group.name + ": " + formatMoney(split));
+            for (String member : group.members) {
+                String result = client.addChargeClient(
+                        member,
+                        group.getName() + " charge",
+                        split
+                );
+
+                if (result != null && result.equals("CHARGE_ADDED")) {
+                    successfulCharges++;
+                } else {
+                    failedCharges++;
+                }
+            }
+
+            refreshActiveCharges();
+
+            addNotification("Group split created for " + group.getName()
+                    + ". Sent charges to " + successfulCharges + " users.");
 
             JOptionPane.showMessageDialog(this,
                     "Total: " + formatMoney(total)
                             + "\nMembers: " + memberCount
-                            + "\nEach person owes: " + formatMoney(split));
+                            + "\nEach person owes: " + formatMoney(split)
+                            + "\nCharges sent to " + successfulCharges + " users."
+                            + "\nFailed charges: " + failedCharges);
         });
 
         deleteGroupBtn.addActionListener(e -> {
             int index = groupList.getSelectedIndex();
 
             if (index >= 0) {
-                addNotification("Group deleted: " + groups.get(index).name);
+                addNotification("Group deleted: " + groups.get(index).getName());
 
                 groups.remove(index);
                 groupListModel.remove(index);
@@ -510,7 +596,7 @@ public class CartShareGUI extends JFrame {
             int itemIndex = itemList.getSelectedIndex();
 
             if (groupIndex >= 0 && itemIndex >= 0) {
-                String removedItem = groups.get(groupIndex).items.get(itemIndex).name;
+                String removedItem = groups.get(groupIndex).items.get(itemIndex).getName();
 
                 groups.get(groupIndex).items.remove(itemIndex);
                 itemListModel.remove(itemIndex);
@@ -548,9 +634,33 @@ public class CartShareGUI extends JFrame {
             }
 
             for (ItemData item : group.items) {
-                memberListModel.size();
-                itemListModel.addElement(item.name + " - " + formatMoney(item.price));
+                itemListModel.addElement(item.getName() + " - " + formatMoney(item.price));
             }
+        }
+    }
+
+    private void loadCurrentlySelectedGroupAgain() {
+        if (groupList == null) {
+            return;
+        }
+
+        int index = groupList.getSelectedIndex();
+        loadSelectedGroup(index);
+    }
+
+    private void refreshActiveCharges() {
+        activeCharges.clear();
+        activeChargesModel.clear();
+
+        if (currentUser.equals("")) {
+            return;
+        }
+
+        ArrayList<ChargeData> chargesFromServer = client.fetchChargesClient(currentUser);
+
+        for (ChargeData charge : chargesFromServer) {
+            activeCharges.add(charge);
+            activeChargesModel.addElement(charge.getName() + ": " + formatMoney(charge.amount));
         }
     }
 
@@ -559,37 +669,44 @@ public class CartShareGUI extends JFrame {
         panel.setBackground(Color.BLACK);
         panel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
 
-        JList<String> activeCharges = new JList<>(activeChargesModel);
-        JList<String> paidCharges = new JList<>(paidChargesModel);
+        JList<String> activeChargesList = new JList<>(activeChargesModel);
+        JList<String> paidChargesList = new JList<>(paidChargesModel);
 
         JButton payButton = createBlueButton("Pay Selected Charge");
 
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.setBackground(Color.BLACK);
         leftPanel.add(createLabel("Active Charges"), BorderLayout.NORTH);
-        leftPanel.add(new JScrollPane(activeCharges), BorderLayout.CENTER);
+        leftPanel.add(new JScrollPane(activeChargesList), BorderLayout.CENTER);
         leftPanel.add(payButton, BorderLayout.SOUTH);
 
         JPanel rightPanel = new JPanel(new BorderLayout());
         rightPanel.setBackground(Color.BLACK);
         rightPanel.add(createLabel("Paid Charges"), BorderLayout.NORTH);
-        rightPanel.add(new JScrollPane(paidCharges), BorderLayout.CENTER);
+        rightPanel.add(new JScrollPane(paidChargesList), BorderLayout.CENTER);
 
         payButton.addActionListener(e -> {
-            int index = activeCharges.getSelectedIndex();
+            int index = activeChargesList.getSelectedIndex();
 
             if (index >= 0) {
-                String charge = activeChargesModel.get(index);
-                double amount = activeChargeAmounts.get(index);
+                ChargeData charge = activeCharges.get(index);
 
-                currentBalance -= amount;
-                updateHomeLabels();
+                String result = client.payChargeClient(currentUser, index);
 
-                activeChargesModel.remove(index);
-                activeChargeAmounts.remove(index);
-                paidChargesModel.addElement(charge);
+                if (result != null && result.startsWith("BALANCE")) {
+                    String[] parts = result.split("\\|");
+                    currentBalance = Double.parseDouble(parts[1]);
 
-                addNotification("Charge paid: " + charge);
+                    updateHomeLabels();
+
+                    paidChargesModel.addElement(charge.getName() + ": " + formatMoney(charge.amount));
+
+                    refreshActiveCharges();
+
+                    addNotification("Charge paid: " + charge.getName());
+                } else {
+                    JOptionPane.showMessageDialog(this, "Could not pay charge. Make sure the server is running.");
+                }
             }
         });
 
@@ -629,38 +746,6 @@ public class CartShareGUI extends JFrame {
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
         return panel;
-    }
-
-    static class User {
-        String username;
-        String password;
-        double balance;
-
-        User(String username, String password, double balance) {
-            this.username = username;
-            this.password = password;
-            this.balance = balance;
-        }
-    }
-
-    static class GroupData {
-        String name;
-        ArrayList<String> members = new ArrayList<>();
-        ArrayList<ItemData> items = new ArrayList<>();
-
-        GroupData(String name) {
-            this.name = name;
-        }
-    }
-
-    static class ItemData {
-        String name;
-        double price;
-
-        ItemData(String name, double price) {
-            this.name = name;
-            this.price = price;
-        }
     }
 
     public static void main(String[] args) {
