@@ -25,7 +25,8 @@ public class GenerateTextFromTextInput {
             client.models.generateContent(
                 "gemini-2.5-flash",
                 "Create a string using the following format of the following receipt: " +
-                "retailername,datepurchased,itemA~pricewithtaxcombined,itemB,pricewithtaxcombined,.."+textvalue,
+                "retailername,datepurchased,itemA~pricewithtaxcombined,itemB,pricewithtaxcombined,.."
+                        + "use date format MM/DD/YYYY only, no time"+textvalue,
                 null);
         return response.text();
   }

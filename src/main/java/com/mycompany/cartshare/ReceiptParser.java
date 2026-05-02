@@ -1,8 +1,8 @@
 package com.mycompany.cartshare;
-
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Base64;
+import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.io.FileInputStream;
@@ -12,7 +12,6 @@ import org.json.JSONArray;
 
 public class ReceiptParser {
     private static final String VISION_API_KEY;
-    public ShoppingCart shopCart;
 
     static {
         Properties props = new Properties();
@@ -28,7 +27,6 @@ public class ReceiptParser {
         // Read and encode image to base64
         byte[] imageBytes = Files.readAllBytes(Paths.get(imagePath));
         String base64Image = Base64.getEncoder().encodeToString(imageBytes);
-
         // Build request body
         String requestBody = """
             {
@@ -38,7 +36,6 @@ public class ReceiptParser {
               }]
             }
             """.formatted(base64Image);
-
         // Call the API
         URL url = new URL("https://vision.googleapis.com/v1/images:annotate?key=" + VISION_API_KEY);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -46,7 +43,6 @@ public class ReceiptParser {
         conn.setRequestProperty("Content-Type", "application/json");
         conn.setDoOutput(true);
         conn.getOutputStream().write(requestBody.getBytes());
-
         // Read raw response
         String rawResponse = new String(conn.getInputStream().readAllBytes());
         JSONObject json = new JSONObject(rawResponse);
@@ -57,29 +53,25 @@ public class ReceiptParser {
                            .getString("description");
         return extractedText;
     }
-        
-    
 
-    public static void main(String[] args) throws Exception {
-        ReceiptParser parser = new ReceiptParser();
-        String result = parser.parseReceipt("receipt1.png");
+    public ArrayList<ItemData> parseReceiptToItems(String imagePath) throws Exception {
+        String extractedText = parseReceipt(imagePath);
         GenerateTextFromTextInput generateValue = new GenerateTextFromTextInput();
-        String outputValue = generateValue.GenerateTextFromTextInput(result);
-        System.out.println(outputValue);
+        String outputValue = generateValue.GenerateTextFromTextInput(extractedText);
+        ArrayList<ItemData> itemList = new ArrayList<>();
         String[] parse = outputValue.split(",");
-        parser.shopCart = new ShoppingCart();
-        for (int i = 0; i < parse.length; i++) {
-            if (i == 0) {
-                parser.shopCart.setRetailer(parse[0]);
-            }
-            else if (i==1) {
-                parser.shopCart.setDate(parse[1]);
-            }
-            else {
-                String [] itemValue = parse[i].split("~");
-                double price = Double.parseDouble(itemValue[1].trim());
-                parser.shopCart.addItem(itemValue[0],price);
+        for (int i = 2; i < parse.length; i++) {
+            if (parse[i].contains("~")) {
+                String[] itemValue = parse[i].split("~");
+                try {
+                    double price = Double.parseDouble(itemValue[1].trim());
+                    itemList.add(new ItemData(itemValue[0].trim(), price));
+                } catch (Exception ex) {
+                    System.out.println("Skipping: " + parse[i]);
+                }
             }
         }
+        return itemList;
     }
+
 }

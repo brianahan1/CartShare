@@ -497,16 +497,24 @@ public class CartShareGUI extends JFrame {
             if (result == JFileChooser.APPROVE_OPTION) {
                 String fileName = fileChooser.getSelectedFile().getName();
 
-                ItemData scannedReceipt = new ItemData("scanned receipt", 53.00);
-                groups.get(index).items.add(scannedReceipt);
-                itemListModel.addElement(scannedReceipt.getName() + " - " + formatMoney(scannedReceipt.price));
+                try {
+                    ReceiptParser parser = new ReceiptParser();
+                    ArrayList<ItemData> scannedItems = parser.parseReceiptToItems(
+                        fileChooser.getSelectedFile().getAbsolutePath()
+                    );
 
-                addNotification("Photo uploaded: " + fileName);
-                addNotification("Scanned receipt added to " + groups.get(index).getName() + ": " + formatMoney(53.00));
+                    for (ItemData item : scannedItems) {
+                        groups.get(index).items.add(item);
+                        itemListModel.addElement(item.getName() + " - " + formatMoney(item.price));
+                        addNotification("Item scanned: " + item.getName() + " - " + formatMoney(item.price));
+                    }
 
-                JOptionPane.showMessageDialog(this,
-                        "Photo selected: " + fileName
-                                + "\nAdded item: scanned receipt - " + formatMoney(53.00));
+                    JOptionPane.showMessageDialog(this,
+                        "Scanned " + scannedItems.size() + " items from receipt.");
+
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Could not parse receipt: " + ex.getMessage());
+                }
             }
         });
 
