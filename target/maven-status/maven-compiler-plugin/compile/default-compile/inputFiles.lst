@@ -1,7 +1,5 @@
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\AbstractRecord.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\AccountManager.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\BillHistory.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\BillSplit.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\CartShare.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\CartShareAccountServer.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\CartShareClient.java
@@ -10,13 +8,8 @@ C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\CurrencyData.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\ExchangeRateService.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\GenerateTextFromTextInput.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\Group.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\GroupData.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\ItemData.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\NotificationData.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\NotificationService.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\ReceiptParser.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\ShoppingCart.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\ShoppingItem.java
-C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\User.java
 C:\Users\james\Documents\GitHub\CartShare\src\main\java\com\mycompany\cartshare\UserAccount.java
